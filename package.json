@@ -1,0 +1,15 @@
+{
+  "name": "mist-omi-gw",
+  "version": "0.0.1",
+  "author": "Jan nyman <jan.nyman@controlthings.fi>",
+  "description": "Mist Omi gateway",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "mist-api": "0.4.0-beta",
+    "omi-odf": "0.1.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
