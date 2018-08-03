@@ -2,31 +2,29 @@ var Mist = require('mist-api').Mist;
 var OmiClient = require('omi-odf').OmiClient;
 var inspect = require('util').inspect;
 
+/** This the URL of the OmiNode server */
 var host = 'ws://localhost:8080';
+/** The device OMI data will be published under this path */
+var pathBody = 'Your/Path/Things/';
 var omiClient = new OmiClient(host);
-var name = 'MySwitch';
-var path = 'Your/Path/Things/'+name;
-var path2 = 'Your/Path/Things';
-var ep = 'relay';
+
+var once = false;
 
 omiClient.once('ready', function() {
     console.log("OmiClient connected to "+ host +'.');
     
 
 
- 
-    // ensure the instance in the O-MI node by issuing a write command
-    omiClient.write(path, ep, false);
+/*
  
     // subscribe to changes from "MyDevice"
     omiClient.subscribe(path, null, {}, function(ep, data, opts) {
         console.log("OMI Subscribe:", ep, data, opts);
     });
  
-    /*
+    
     // write ep to true, which should trigger subscription callback
     setTimeout(() => { omiClient.write(path, ep, true); }, 500);
-    */
     
     setTimeout(() => {
         console.log("reading")
@@ -37,7 +35,7 @@ omiClient.once('ready', function() {
             console.log('model', ep, value, opts);
         });       
     }, 600);
-    
+   */ 
 });
  
 omiClient.once('close', function() {
@@ -45,6 +43,12 @@ omiClient.once('close', function() {
     process.exit(1);
 });
 
+
+function modelCb(err, data) {
+    console.log("modelCb", data);
+
+
+}
 
 function followCb(err, data) {
     console.log("followCb", data);
@@ -66,15 +70,57 @@ function OmiNode() {
                 setupWishCore(mist);
             }
         }
-
+   
         if (data[0] && data[0] === "peers") {
             mist.request('listPeers', [], (err, data) => {
-                //console.log("listPeers:", data);
-
                 for (var i in data) {
-                    var peer = data[i];
-                    mist.request('mist.control.follow', [peer, 'relay'],
-                        followCb);
+                    /* Each of the peers (the data[i]) will be used in an async function. Ensure variable 'peer' atomicity by putting it in an in-line function and giving data[ı] as the parameter */
+                    ((peer) => { 
+                        mist.request('mist.control.read', [peer, "mist.name"], (err, data) => {
+                            if (err) {
+                                console.log("Error while reading mist.name");
+                                return;
+                            }
+                            var name = data;
+                            console.log("Name", name);
+                            /* We now know the name of the Mist device, let's create the InfoItems that correspond to the device's Mist endpoints */
+                            mist.request('mist.control.model', [peer], (err, data) => {
+                                console.log(name, "model:", err, data);
+                                /* Iterate through the endpoints and ensure the corresponding InfoItems on the OMI node */
+                                for (var ep in data) {
+                                    console.log("Endpoint on " + name + ":", ep, data[ep].type);
+                                    if (ep === 'mist') {
+                                        console.log("(skipping)" + ep);
+                                    }
+                                    var path = pathBody + name;
+                                    switch (data[ep].type) {
+                                        case "string":
+                                        omiClient.write(path, ep, "");
+                                        break;
+                                        case "bool":
+                                        omiClient.write(path, ep, false);
+                                        break;
+                                        case "int":
+                                        case "float":
+                                        omiClient.write(path, ep, 0.0);
+                                        break;
+                                        case "invoke":
+                                        console.log("Note: invocable endpoints are not currently exposed to OmiNode");
+                                        break;
+                                        default:
+                                        console.log("Unknown Mist endpoint type:", data[ep].type);
+                                    }
+                                }
+                                /* The endpoints have now been ensured, start following to get updates from Mist */
+                                mist.request('mist.control.follow', [peer], (err, data) => {
+                                    var ep = data['id'];
+                                    var value = data['data'];
+                                    console.log("OMI write", path, value);
+                                    omiClient.write(path, ep, value);
+                                });
+                            });
+                        });
+                    }) (data[i]);
                 }
             });
 
@@ -117,7 +163,7 @@ function OmiNode() {
             mist.wish.request("wld.clear", [], (err, data) => { if (err)  { console.log("wld.clear err", data)}});
         }
 
-        if (data[0] === "localDiscovery") {
+        if (data[0] === "localDiscovery" && !once) {
             mist.wish.request("wld.list", [], (err, data) => { 
                 //console.log("wld:", data);
                 for (var i in data) {
@@ -135,6 +181,7 @@ function OmiNode() {
                             if (!found) {
                                 mist.wish.request("wld.friendRequest", [localUid, friendCandidate.ruid, friendCandidate.rhid], (err, data) => {
                                     console.log("Friend request sent to:", friendCandidate.alias);
+                                    once = true;
                                 });
                             }
                         });
