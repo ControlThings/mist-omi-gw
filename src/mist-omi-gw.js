@@ -1,19 +1,55 @@
 var Mist = require('mist-api').Mist;
 var OmiClient = require('omi-odf').OmiClient;
 var inspect = require('util').inspect;
+var crypto = require('crypto');
 
 /** This the URL of the OmiNode server */
 var host = 'ws://localhost:8080';
 /** The device OMI data will be published under this path */
 var pathBody = 'Mist/';
-var omiClient = new OmiClient(host);
 
 var once = false;
 
-var peers = new Array();
-var mistValueCache = new Array();
-var omiValueCache = new Array();
+var omiRestartInterval;
+var omiRunning = false;
 var mist;
+var followIds = new Array(); //Array containing the current followIDs, indexed with peer hashes, created using hashPeer()
+
+function setupOmiClient() {
+    if (omiRunning) {
+        return;
+    }
+    omiClient = new OmiClient(host);
+    omiClient.once('ready', function() {
+        console.log("OmiClient connected to "+ host +'.');
+        omiRunning = true;
+        
+        if (omiRestartInterval) {
+            clearInterval(omiRestartInterval);
+        }
+        omiRestartInterval = null;
+
+        mist.request('signals', [], (err, data) => {
+            if (data[0] && data[0] === "peers") {
+                /* A change has happened in the list of peers that we know of */
+                setupMistOmiGateway();
+            }
+        });
+        setupMistOmiGateway();
+    });
+
+    omiClient.once('close', function() {
+        console.log("OmiClient websocket connection was lost.");
+        //process.exit(1);
+        omiRunning = false;
+        for (p in followIds) {
+            mist.requestCancel(followIds[p]);
+        }
+        omiRestartInterval = setInterval(setupOmiClient, 1000);
+    });
+}
+
+
 
 function comparePeers(peer1, peer2) {
     if (!peer1 || !peer2) {
@@ -23,7 +59,16 @@ function comparePeers(peer1, peer2) {
     return peer1['luid'].compare(peer2['luid']) == 0  && peer1['ruid'].compare(peer2['ruid']) == 0 && peer1['rsid'].compare(peer2['rsid']) == 0 && peer1['rhid'].compare(peer2['rhid']) == 0;
 }
 
-function setupMistOmiGateway(mist) {
+function hashPeer(peer) {
+    return crypto.createHash('sha256').update(Buffer.concat(new Array(peer['luid'], peer['ruid'], peer['rsid'], peer['rhid']))).digest().toString('hex');
+}
+
+function setupMistOmiGateway() {
+    console.log("setupMistOmiGateway")
+    var peers = new Array();
+    var mistValueCache = new Array();
+    var omiValueCache = new Array();
+
     mist.request('listPeers', [], (err, data) => {
         for (var i in data) {
             /* Each of the peers (the data[i]) will be used in an async function. Ensure variable 'peer' atomicity by putting it in an in-line function and giving data[ı] as the parameter */
@@ -33,6 +78,7 @@ function setupMistOmiGateway(mist) {
                         if (comparePeers(peer, peers[p])) {
                             console.log("Peer registered at omi path", p, "is offline");
                             /* Here we should cancel the omi subscription, and mist follow */
+                            mist.requestCancel(followIds[createHash(peers[p])]);
                             peers[p] = null;
                         }
                     }
@@ -49,7 +95,7 @@ function setupMistOmiGateway(mist) {
                     for (p in peers) {
                         if (peers[p] && comparePeers(peer, peers[p])) {
                             /* Don't do anything, as we are already keeping track of this peer */
-                            //  console.log("Peer", name, "already registered, omi path", path);
+                            console.log("Peer", name, "already registered, omi path", path);
                             return;
                         }
                     }
@@ -65,8 +111,8 @@ function setupMistOmiGateway(mist) {
                         /* Start following to get updates from Mist. The first follow reponse arrives immediately, and that creates the InfoItems.
                         Note that this implicitly means that if Mist and OMI values disagree when
                         Mist peer is online, the Mist value is written to OMI, even if the value had been updated in OMI during the time Mist peer was offline. */
-                        console.log("Starting follow for ", name );
-                        mist.request('mist.control.follow', [peer], (err, data, meta) => {
+                        console.log("Starting follow for ", name, hashPeer(peer) );
+                        followIds[hashPeer(peer)] = mist.request('mist.control.follow', [peer], (err, data, meta) => {
                             //console.log("follow cb:", path, "data:", data, "err:", err);
                             if (err) {
                                 console.log("follow error", data, "path:", path);
@@ -116,7 +162,6 @@ function setupMistOmiGateway(mist) {
                                 });
                             }
                         });
-                        
                     });
                     
                 });
@@ -126,34 +171,21 @@ function setupMistOmiGateway(mist) {
 
 }
 
-omiClient.once('ready', function() {
-    console.log("OmiClient connected to "+ host +'.');
 
-    mist.request('signals', [], (err, data) => {
-        if (data[0] && data[0] === "peers") {
-            console.log("peers");
-            setupMistOmiGateway(mist);
-        }
-    });
-    setupMistOmiGateway(mist);
-});
- 
-omiClient.once('close', function() {
-    console.log("OmiClient websocket connection was lost.");
-    process.exit(1);
-});
 
 function OmiNode() {
     mist = new Mist({ name: 'MistApi', corePort: 10001 }); // defaults: coreIp: '127.0.0.1', corePort: 9094
-
-    
-    mist.request('signals', [], (err, data) => {
-        //console.log(err, data[0]);
+   
+    var id = mist.request('signals', [], (err, data) => {
+        console.log("Waiting for Wish core to become ready...")
 
         if (data[0] && data[0] === 'ready') {
+            console.log("Core ready.")
             if (data[1] === true) {
                 setupWishCore(mist);
             }
+            setupOmiClient();
+            mist.requestCancel(id);
         }
     });   
 }
@@ -189,7 +221,7 @@ function OmiNode() {
         //console.log("Got Wish core signals: ", data);
 
         if (data[0] === "ok") {
-            // Clear the local discovery cache so that we may get updates on available peers
+            // Clear the local discovery cache so that we may get updates on available cores
             mist.wish.request("wld.clear", [], (err, data) => { if (err)  { console.log("wld.clear err", data)}});
         }
 
