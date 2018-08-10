@@ -4,7 +4,7 @@ var inspect = require('util').inspect;
 var crypto = require('crypto');
 
 /** This the URL of the OmiNode server */
-var host = 'ws://localhost:8080';
+var host = 'ws://localhost:8083';
 /** The device OMI data will be published under this path */
 var pathBody = 'Mist/';
 
@@ -90,7 +90,7 @@ function setupMistOmiGateway() {
                         return;
                     }
                     var name = data;
-                    var path = pathBody + peer.ruid.toString('hex').substring(0,6) + '/' + name;
+                    var path = pathBody + peer.ruid.toString('hex') + '/' + name;
 
                     for (p in peers) {
                         if (peers[p] && comparePeers(peer, peers[p])) {
@@ -209,6 +209,7 @@ function OmiNode() {
         
         if (!foundLocalId) {
             console.log("There were no local identities in the core, creating one!");
+	    var name = "Omi gw"
             mist.wish.request("identity.create", [name + "'s identity"], (err, data) => {
                 if (err) { console.log("Error creating identity!", data); return; }
                 //console.log("identity.create", data);
@@ -217,6 +218,7 @@ function OmiNode() {
         }
     });
 
+/*
     mist.wish.request("signals", [], (err, data) => {
         //console.log("Got Wish core signals: ", data);
 
@@ -253,6 +255,7 @@ function OmiNode() {
             });
         }
     });
+*/
 }
 
 module.exports = {

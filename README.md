@@ -20,6 +20,8 @@ Once the Mist value changes, the update is sent to the OmiNode, and vice-versa. 
 ## Usage
 
 * Download the Aalto ASIA's OmiNode software from Github
+** Setup port in conf/application.conf, section "omiservice", "ports"
+** Setup whitelist under "input-whitelist-ips" and "input-whitelist-subnets"
 * Download Mist as desribed in: https://github.com/akaustel/mist-examples-nodejs and start the Switch demo
 * Start a Wish node for the mist-omi-gw using: 
 
@@ -32,7 +34,32 @@ WISH=~/controlthings/mist/wish-c99/build/wish-core ./run-wish-core.sh
 node run.js
 ```
 
+### Creating trust relationships with Mist devices
 
+It is most convenient to use wish-cli for building the trust relationships with the Mist devices and the Omi gateway.
+
+Install wish-cli, then start it:
+
+```sh
+CORE=10001 bin/cli
+```
+
+Note: This is assuming that you have a wish core running on the local host, core listening at app tcp port 10001, as assumed by the run-wish-core.sh script.
+
+There are several ways to establish trust relationships, in the example below we can use the Wish local discovery to find a systems on our local subnet.
+
+```js
+identity.list()
+my_uid=result[0].uid		//Note: this assumes that the local identity is first in the list, which is a valid assumption for the time being
+wld.list();	//Returns a list of units seen on wld. You can refer to an entry using result[i], where i is the array index of the object in the list
+wld.friendRequest(my_uid, result[0].ruid, result[0].rhid) //The system we are interested in happens to be first one on the list returned by wld.list()
+//After this step the the Mist peers should be registered to OmiNode automatically
+
+```
+
+## Startup script
+
+There is a starup script under tools/startup.sh, which can be used as a server init script, to startup all the required components: o-mi-node, wish core and mist-omi-gw.
 
 ## Testing using OmiNode web UI
 
