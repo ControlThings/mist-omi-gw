@@ -26,7 +26,7 @@ Once the Mist value changes, the update is sent to the OmiNode, and vice-versa. 
 * Download and unzip the Aalto ASIA's OmiNode software from Github
 ** Setup port in conf/application.conf, section "omiservice", "ports"
 ** Setup whitelist under "input-whitelist-ips" and "input-whitelist-subnets"
-* Download Mist as desribed in: https://github.com/akaustel/mist-examples-nodejs and start the Switch demo
+* Download Mist as described in: https://github.com/ControlThings/mist-examples-nodejs and start the Switch demo
 * Start a Wish node for the mist-omi-gw using: 
 
 ```sh
