@@ -1,6 +1,6 @@
 # Mist OMI IoT gateway
 
-This program is a generic protocol gateway between Mist and OMI ODF systems. 
+This program is a gateway that publishes data from IoT devices and services compatible with the [Mist system](http://controlthings.fi/), to a system compliant with the [O-MI](http://www.opengroup.org/iot/omi/index.htm). It allows O-MI compatible systems to read, subscribe,  and write to Information Items published by the IoT device.
 
 ## How the program works
 
@@ -141,8 +141,8 @@ To clear the OmiNode database, issue a OMI delete request:
 ## Testing using MistCli
 
 ```js
-list()                          # Get list of peers in mist-cli
-mist.control.follow(peers[1]);  # Assuming that the Switch peer was second in the peers list
+list()                          // Get list of peers in mist-cli
+mist.control.follow(peers[1]);  // Assuming that the Switch peer was second in the peers list
 mist.control.read(peers[1], "relay");
 mist.control.write(peers[1], "relay", true);
 mist.control.write(peers[1], "relay", false);
