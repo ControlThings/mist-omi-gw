@@ -148,4 +148,8 @@ mist.control.write(peers[1], "relay", true);
 mist.control.write(peers[1], "relay", false);
 ```
 
+# Acknowledgements
 
+Part of this work has been carried out in the scope of the project
+bIoTope which is co-funded by the European Commission under Horizon 2020
+program, contract number H2020-ICT-2015/688203.
