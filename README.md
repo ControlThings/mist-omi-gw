@@ -1,17 +1,21 @@
 # Mist OMI IoT gateway
 
-This program is a generic protocol gateway between Mist and OMI ODF systems. The program works by first establishing a trust relationship with a Mist peer.
+This program is a gateway that publishes data from IoT devices and services compatible with the [Mist system](http://controlthings.fi/), to a system compliant with the [O-MI](http://www.opengroup.org/iot/omi/index.htm). It allows O-MI compatible systems to read, subscribe,  and write to Information Items published by the IoT device.
+
+## How the program works
+
+The program works by first establishing a trust relationship with a Mist peer.
 The peer is (at least for the time being) found using the Wish local discovery protocol; The gateway program expects to find a peer that anounces itself
 using a certain wld class (such as: com.enervent.ewind), and when it finds one, it sends a friend request to the peer, and waits until the request is granted.
 
 Once a peer has become online, the Mist model is then queried for, and when the peer's model is known, the gateway starts following the peer for updates.
 Each of the endpoints are published to the OmiNode server under path according to this pattern:
 
-    Mist/(first 3 bytes of the peer's luid)/(mist.name)/(endpoint name). 
+    Mist/(peer ruid)/(mist.name)/(endpoint name). 
 
 Example: 
     
-    Mist/48d626/Switch/relay
+    Mist/48d626.../Switch/relay
 
 The publishing happens effectively when the first response of the "control.follow" arrives, and this also overwrites any value the OMI server might have had from before.
 
@@ -19,7 +23,7 @@ Once the Mist value changes, the update is sent to the OmiNode, and vice-versa. 
 
 ## Usage
 
-* Download the Aalto ASIA's OmiNode software from Github
+* Download and unzip the Aalto ASIA's OmiNode software from Github
 ** Setup port in conf/application.conf, section "omiservice", "ports"
 ** Setup whitelist under "input-whitelist-ips" and "input-whitelist-subnets"
 * Download Mist as desribed in: https://github.com/akaustel/mist-examples-nodejs and start the Switch demo
@@ -136,9 +140,16 @@ To clear the OmiNode database, issue a OMI delete request:
 
 ## Testing using MistCli
 
-list()
-mist.control.follow(peers[1]);
+```js
+list()                          // Get list of peers in mist-cli
+mist.control.follow(peers[1]);  // Assuming that the Switch peer was second in the peers list
 mist.control.read(peers[1], "relay");
 mist.control.write(peers[1], "relay", true);
+mist.control.write(peers[1], "relay", false);
+```
 
+# Acknowledgements
 
+Part of this work has been carried out in the scope of the project
+bIoTope which is co-funded by the European Commission under Horizon 2020
+program, contract number H2020-ICT-2015/688203.
