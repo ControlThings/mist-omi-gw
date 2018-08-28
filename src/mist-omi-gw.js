@@ -15,6 +15,14 @@ var omiRunning = false;
 var mist;
 var followIds = new Array(); //Array containing the current followIDs, indexed with peer hashes, created using hashPeer()
 
+function cleanupOmiClient() {
+    omiRunning = false;
+    for (p in followIds) {
+        mist.requestCancel(followIds[p]);
+    }
+	
+}
+
 function setupOmiClient() {
     if (omiRunning) {
         return;
@@ -40,11 +48,7 @@ function setupOmiClient() {
 
     omiClient.once('close', function() {
         console.log("OmiClient websocket connection was lost.");
-        //process.exit(1);
-        omiRunning = false;
-        for (p in followIds) {
-            mist.requestCancel(followIds[p]);
-        }
+        cleanupOmiClient();
         omiRestartInterval = setInterval(setupOmiClient, 1000);
     });
 }
@@ -131,7 +135,13 @@ function setupMistOmiGateway() {
                             if (omiValueCache[path+ep] !== value) {
                                 omiValueCache[path+ep] = value;
                                 console.log("OMI write", path, ep, value);
-                                omiClient.write(path, ep, value);
+                                try {
+                                    omiClient.write(path, ep, value);
+                                } catch (exception) {
+                                    console.log("omiClient.write throws exception, try to restart connection to OmiNode");	
+                                    cleanupOmiClient();
+                                    setupOmiClient();
+                                }
                             }
                         });
                         
